@@ -40,7 +40,13 @@ class ArmorEvents(commands.Cog):
             await interaction.response.send_message("❌ You need admin permissions.", ephemeral=True)
             return
         
-        # Parse datetime with EST timezone
+        # Get timezone from guild settings
+        settings = self.db.get_guild_settings(interaction.guild.id)
+        timezone_name = settings.get('event_timezone', 'UTC')
+        try:
+            tz = pytz.timezone(timezone_name)
+        except Exception:
+            tz = pytz.UTC
         event_datetime = None
         if date:
             if not time:
@@ -49,14 +55,10 @@ class ArmorEvents(commands.Cog):
                 date_obj = datetime.datetime.strptime(date, "%Y-%m-%d").date()
                 time_obj = datetime.datetime.strptime(time, "%H:%M").time()
                 event_datetime = datetime.datetime.combine(date_obj, time_obj)
-                
-                # Convert to EST timezone
-                est = pytz.timezone("US/Eastern")
-                event_datetime = est.localize(event_datetime)
-                
-                # Check if in the past (compare with EST now)
-                if event_datetime < datetime.datetime.now(est):
-                    await interaction.response.send_message("❌ Cannot schedule in the past!", ephemeral=True)
+                event_datetime = tz.localize(event_datetime)
+                # Check if in the past (compare with now in timezone)
+                if event_datetime < datetime.datetime.now(tz):
+                    await interaction.response.send_message(f"❌ Cannot schedule in the past! (Timezone: {timezone_name})", ephemeral=True)
                     return
             except ValueError:
                 await interaction.response.send_message("❌ Invalid date/time format.", ephemeral=True)
