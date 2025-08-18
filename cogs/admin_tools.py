@@ -374,13 +374,13 @@ class BotSettingsView(View):
         super().__init__(timeout=TIMEOUTS["admin_controls"])
         self.settings = settings
         self.db = db
+        self.add_item(ToggleAutoMapVotesButton(self))
+        self.add_item(ToggleAutoRolesButton(self))
+        self.add_item(ToggleRecruitmentButton(self))
+        self.add_item(EditAdminRolesButton(self))
+        self.add_item(EditReminderTimesButton(self))
+        self.add_item(SetTimezoneButton(self))
         
-    self.add_item(ToggleAutoMapVotesButton(self))
-    self.add_item(ToggleAutoRolesButton(self))
-    self.add_item(ToggleRecruitmentButton(self))
-    self.add_item(EditAdminRolesButton(self))
-    self.add_item(EditReminderTimesButton(self))
-    self.add_item(SetTimezoneButton(self))
 class SetTimezoneButton(Button):
     def __init__(self, parent):
         super().__init__(label="🌐 Set Event Timezone", style=discord.ButtonStyle.secondary)
