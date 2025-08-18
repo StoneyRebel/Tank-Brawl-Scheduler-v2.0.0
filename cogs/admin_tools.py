@@ -374,12 +374,45 @@ class BotSettingsView(View):
         super().__init__(timeout=TIMEOUTS["admin_controls"])
         self.settings = settings
         self.db = db
-        
         self.add_item(ToggleAutoMapVotesButton(self))
         self.add_item(ToggleAutoRolesButton(self))
         self.add_item(ToggleRecruitmentButton(self))
         self.add_item(EditAdminRolesButton(self))
         self.add_item(EditReminderTimesButton(self))
+        self.add_item(SetTimezoneButton(self))
+        
+class SetTimezoneButton(Button):
+    def __init__(self, parent):
+        super().__init__(label="🌐 Set Event Timezone", style=discord.ButtonStyle.secondary)
+        self.parent = parent
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(SetTimezoneModal(self.parent))
+
+class SetTimezoneModal(Modal):
+    def __init__(self, settings_view):
+        super().__init__(title="Set Event Timezone")
+        self.settings_view = settings_view
+        current_tz = self.settings_view.settings.get('event_timezone', 'UTC')
+        self.tz_input = TextInput(
+            label="Timezone Name",
+            placeholder="e.g., UTC, America/New_York",
+            default=current_tz,
+            max_length=50
+        )
+        self.add_item(self.tz_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        tz_name = self.tz_input.value.strip()
+        import pytz
+        try:
+            pytz.timezone(tz_name)
+        except Exception:
+            await interaction.response.send_message("❌ Invalid timezone name. See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones", ephemeral=True)
+            return
+        self.settings_view.db.update_guild_setting(interaction.guild.id, 'event_timezone', tz_name)
+        self.settings_view.settings['event_timezone'] = tz_name
+        await interaction.response.send_message(f"✅ Event timezone set to `{tz_name}`.", ephemeral=True)
 
 class ToggleAutoMapVotesButton(Button):
     def __init__(self, parent):
