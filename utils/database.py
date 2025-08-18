@@ -120,6 +120,12 @@ class EventDatabase:
             )
         ''')
 
+        # Ensure event_timezone column exists
+        cursor.execute("PRAGMA table_info(guild_settings)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'event_timezone' not in columns:
+            cursor.execute("ALTER TABLE guild_settings ADD COLUMN event_timezone TEXT DEFAULT 'UTC'")
+
         # Reminders queue
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS reminder_queue (
