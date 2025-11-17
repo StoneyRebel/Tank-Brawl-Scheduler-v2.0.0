@@ -6,6 +6,7 @@ from discord.ui import View, Button, UserSelect, Select, Modal, TextInput
 import logging
 import datetime
 import pytz
+import sqlite3
 from typing import Optional, Dict, List
 
 from utils.database import EventDatabase
@@ -335,6 +336,7 @@ class EventSignupView(View):
         self.add_item(RecruitPlayersButton(self))
         self.add_item(EditCrewButton(self))
         self.add_item(LeaveEventButton(self))
+        self.add_item(EndEventButton(self))  # NEW: End event and cleanup roles
 
     def build_embed(self, author=None):
         embed = discord.Embed(title=self.title, description=self.description, color=0xFF0000)
@@ -1132,6 +1134,104 @@ class CrewNameModal(Modal):
                 return
 
         await interaction.response.send_message("❌ Team is full!", ephemeral=True)
+
+class EndEventButton(Button):
+    def __init__(self, view):
+        super().__init__(label="🏁 End Event", style=discord.ButtonStyle.danger, row=4)
+        self.view_ref = view
+
+    async def callback(self, interaction: discord.Interaction):
+        # Check if user has admin permissions
+        if not any(role.name in ADMIN_ROLES for role in interaction.user.roles):
+            await interaction.response.send_message("❌ Only admins can end events.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            # Get all participants
+            participants = []
+
+            # Add commanders
+            if self.view_ref.commander_a:
+                participants.append((self.view_ref.commander_a, 'A', 'commander', None))
+            if self.view_ref.commander_b:
+                participants.append((self.view_ref.commander_b, 'B', 'commander', None))
+
+            # Add crew members
+            for team, crew_list in [('A', self.view_ref.crews_a), ('B', self.view_ref.crews_b)]:
+                for i, crew in enumerate(crew_list):
+                    if crew:
+                        participants.append((crew['commander'], team, 'commander', crew['crew_name']))
+                        if crew['gunner'] != crew['commander']:
+                            participants.append((crew['gunner'], team, 'gunner', crew['crew_name']))
+                        if crew['driver'] != crew['commander']:
+                            participants.append((crew['driver'], team, 'driver', crew['crew_name']))
+
+            # Add recruits
+            for recruit in self.view_ref.recruits:
+                participants.append((recruit, None, 'recruit', None))
+
+            # Save all signups to database
+            armor_events_cog = interaction.client.get_cog('ArmorEvents')
+            if armor_events_cog and self.view_ref.event_id:
+                from utils.database import EventDatabase
+                db = EventDatabase()
+
+                for user, team, role, crew_name in participants:
+                    try:
+                        # Save to signups table
+                        conn = sqlite3.connect(db.db_path, timeout=30.0)
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            INSERT OR REPLACE INTO signups
+                            (event_id, user_id, signup_type, team, role, crew_name)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        ''', (self.view_ref.event_id, user.id, 'crew' if role != 'recruit' else 'recruit',
+                              team, role, crew_name))
+                        conn.commit()
+                        conn.close()
+                    except Exception as e:
+                        logger.error(f"Error saving signup: {e}")
+
+                # Update event status to completed
+                conn = sqlite3.connect(db.db_path, timeout=30.0)
+                cursor = conn.cursor()
+                cursor.execute('UPDATE events SET status = ? WHERE id = ?', ('Completed', self.view_ref.event_id))
+                conn.commit()
+                conn.close()
+
+            # Remove all event roles from participants
+            role_removal_count = 0
+            for user, team, role_type, crew_name in participants:
+                if team:  # Only remove roles for team members
+                    removed = await armor_events_cog.remove_event_roles(user, self.view_ref.event_type)
+                    if removed:
+                        role_removal_count += 1
+
+            # Disable all buttons
+            for item in self.view_ref.children:
+                item.disabled = True
+
+            # Update embed to show event ended
+            embed = self.view_ref.build_embed()
+            embed.title = f"🏁 {self.view_ref.title} [ENDED]"
+            embed.color = discord.Color.greyple()
+            embed.set_footer(text=f"Event ended by {interaction.user.display_name}")
+
+            await self.view_ref.message.edit(embed=embed, view=self.view_ref)
+
+            await interaction.followup.send(
+                f"✅ **Event Ended Successfully!**\n"
+                f"📊 **{len(participants)}** participants saved to database\n"
+                f"🎭 **{role_removal_count}** event roles removed\n"
+                f"🔒 Signup disabled",
+                ephemeral=True
+            )
+
+        except Exception as e:
+            logger.error(f"Error ending event: {e}")
+            await interaction.followup.send(f"❌ Error ending event: {e}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(ArmorEvents(bot))
