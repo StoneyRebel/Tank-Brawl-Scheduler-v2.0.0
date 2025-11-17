@@ -1,0 +1,42 @@
+{
+  "name": "Tank Brawl Scheduler Bot",
+  "description": "A comprehensive Discord bot for managing Hell Let Loose armor events, crew formations, and tournament scheduling.",
+  "repository": "https://github.com/yourusername/tank-brawl-scheduler",
+  "logo": "https://raw.githubusercontent.com/yourusername/tank-brawl-scheduler/main/assets/logo.png",
+  "keywords": [
+    "discord",
+    "bot",
+    "hell-let-loose",
+    "gaming",
+    "events",
+    "tournaments",
+    "crew-management"
+  ],
+  "website": "https://github.com/yourusername/tank-brawl-scheduler",
+  "success_url": "/",
+  "env": {
+    "DISCORD_BOT_TOKEN": {
+      "description": "Your Discord bot token from https://discord.com/developers/applications",
+      "required": true
+    },
+    "LOG_LEVEL": {
+      "description": "Logging level (DEBUG, INFO, WARNING, ERROR)",
+      "value": "INFO",
+      "required": false
+    }
+  },
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "free"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "scripts": {
+    "postdeploy": "echo 'Tank Brawl Scheduler Bot deployed successfully! Make sure to invite the bot to your Discord server with proper permissions.'"
+  }
+}

@@ -1,0 +1,20 @@
+# Core Discord bot dependencies
+discord.py>=2.3.0
+aiohttp>=3.8.0
+
+# Timezone handling
+pytz>=2023.3
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Enhanced logging
+colorlog>=6.7.0
+
+# Performance monitoring (optional)
+psutil>=5.9.0
+
+# Development dependencies (optional)
+# pytest>=7.4.0
+# black>=23.7.0
+# flake8>=6.0.0
