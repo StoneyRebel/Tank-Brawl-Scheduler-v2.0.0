@@ -35,11 +35,14 @@ class ArmorEvents(commands.Cog):
     ])
     async def schedule_event(self, interaction: discord.Interaction, event_type: app_commands.Choice[str],
                            date: str = None, time: str = None, map_vote_channel: discord.TextChannel = None):
-        
+
         if not any(role.name in ADMIN_ROLES for role in interaction.user.roles):
             await interaction.response.send_message("❌ You need admin permissions.", ephemeral=True)
             return
-        
+
+        # Defer immediately to prevent timeout (we have 15 minutes instead of 3 seconds)
+        await interaction.response.defer(ephemeral=True)
+
         # Parse datetime with EST timezone
         event_datetime = None
         if date:
@@ -56,10 +59,10 @@ class ArmorEvents(commands.Cog):
                 
                 # Check if in the past (compare with EST now)
                 if event_datetime < datetime.datetime.now(est):
-                    await interaction.response.send_message("❌ Cannot schedule in the past!", ephemeral=True)
+                    await interaction.followup.send("❌ Cannot schedule in the past!", ephemeral=True)
                     return
             except ValueError:
-                await interaction.response.send_message("❌ Invalid date/time format.", ephemeral=True)
+                await interaction.followup.send("❌ Invalid date/time format.", ephemeral=True)
                 return
 
         # Get preset (no custom title, use default)
@@ -95,7 +98,7 @@ class ArmorEvents(commands.Cog):
         response = f"✅ {event_type.value.replace('_', ' ').title()} created!"
         if event_datetime:
             response += f"\n📅 <t:{int(event_datetime.timestamp())}:F>"
-        
+
         if map_vote_success:
             if map_vote_channel:
                 response += f"\n🗳️ Map vote created in {map_vote_channel.mention}!"
@@ -103,8 +106,8 @@ class ArmorEvents(commands.Cog):
                 response += f"\n🗳️ Map vote created automatically!"
         else:
             response += f"\n⚠️ Map vote could not be created (MapVoting cog not available)"
-            
-        await interaction.response.send_message(response, ephemeral=True)
+
+        await interaction.followup.send(response, ephemeral=True)
 
     def get_event_preset(self, event_type: str):
         presets = {
