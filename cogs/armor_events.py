@@ -81,26 +81,32 @@ class ArmorEvents(commands.Cog):
             logger.error(f"Database error: {e}")
             event_id = 99999  # Fake ID
 
+        # Create event channels (category, text, voice)
+        event_channels = await self.create_event_channels(interaction.guild, title)
+        event_text_channel = event_channels['text_channel'] if event_channels else interaction.channel
+
         # Create event signup with full functionality
         view = EventSignupView(title, description, event_datetime, title, event_id)
         embed = view.build_embed(interaction.user)
-        message = await interaction.channel.send(embed=embed, view=view)
+        message = await event_text_channel.send(embed=embed, view=view)
         view.message = message
 
-        # Auto-create map vote (separate message) - Use selected channel or current channel
-        vote_channel = map_vote_channel if map_vote_channel else interaction.channel
-        map_vote_success = await self.create_map_vote(vote_channel, event_datetime, event_id)
+        # Auto-create map vote in event text channel
+        map_vote_success = await self.create_map_vote(event_text_channel, event_datetime, event_id)
 
         # Response
         response = f"✅ **{title}** created!"
         if event_datetime:
             response += f"\n📅 <t:{int(event_datetime.timestamp())}:F>"
 
+        if event_channels:
+            response += f"\n📁 Category: {event_channels['category'].mention}"
+            response += f"\n💬 Text: {event_channels['text_channel'].mention}"
+            response += f"\n🔊 Voice Allies: {event_channels['voice_allies'].mention}"
+            response += f"\n🔊 Voice Axis: {event_channels['voice_axis'].mention}"
+
         if map_vote_success:
-            if map_vote_channel:
-                response += f"\n🗳️ Map vote created in {map_vote_channel.mention}!"
-            else:
-                response += f"\n🗳️ Map vote created automatically!"
+            response += f"\n🗳️ Map vote created in event channel!"
         else:
             response += f"\n⚠️ Map vote could not be created (MapVoting cog not available)"
 
@@ -130,6 +136,95 @@ class ArmorEvents(commands.Cog):
             }
         }
         return presets.get(event_type, presets["custom"])
+
+    async def create_event_channels(self, guild: discord.Guild, event_title: str):
+        """Create category, text, and voice channels for an event"""
+        try:
+            logger.info(f"📁 Creating channels for event: {event_title}")
+
+            # Create category
+            category = await guild.create_category(
+                name=f"🎮 {event_title}",
+                reason=f"Event channels for {event_title}"
+            )
+
+            # Create roles (they should already exist or will be created on signup)
+            allies_role = discord.utils.get(guild.roles, name=f"{event_title} Allies")
+            axis_role = discord.utils.get(guild.roles, name=f"{event_title} Axis")
+
+            # Create the roles if they don't exist yet
+            if not allies_role:
+                allies_role = await guild.create_role(
+                    name=f"{event_title} Allies",
+                    color=discord.Color.green(),
+                    mentionable=True,
+                    reason=f"Allies team for {event_title}"
+                )
+
+            if not axis_role:
+                axis_role = await guild.create_role(
+                    name=f"{event_title} Axis",
+                    color=discord.Color.red(),
+                    mentionable=True,
+                    reason=f"Axis team for {event_title}"
+                )
+
+            # Create text channel (both teams can access)
+            text_overwrites = {
+                guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                allies_role: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+                axis_role: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+                guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+            }
+
+            text_channel = await guild.create_text_channel(
+                name=f"📋-{event_title.lower().replace(' ', '-')}",
+                category=category,
+                overwrites=text_overwrites,
+                topic=f"Event coordination for {event_title}",
+                reason=f"Event text channel for {event_title}"
+            )
+
+            # Create Allies voice channel
+            voice_allies_overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
+                allies_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
+                guild.me: discord.PermissionOverwrite(view_channel=True, connect=True)
+            }
+
+            voice_allies = await guild.create_voice_channel(
+                name=f"🗾 Allies - {event_title}",
+                category=category,
+                overwrites=voice_allies_overwrites,
+                reason=f"Allies voice for {event_title}"
+            )
+
+            # Create Axis voice channel
+            voice_axis_overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
+                axis_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
+                guild.me: discord.PermissionOverwrite(view_channel=True, connect=True)
+            }
+
+            voice_axis = await guild.create_voice_channel(
+                name=f"🔵 Axis - {event_title}",
+                category=category,
+                overwrites=voice_axis_overwrites,
+                reason=f"Axis voice for {event_title}"
+            )
+
+            logger.info(f"✅ Created event channels for {event_title}")
+
+            return {
+                'category': category,
+                'text_channel': text_channel,
+                'voice_allies': voice_allies,
+                'voice_axis': voice_axis
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Error creating event channels: {e}")
+            return None
 
     async def assign_event_role(self, user: discord.Member, event_title: str, team: str = None):
         """Assign team-specific roles based on event title"""
@@ -1184,6 +1279,45 @@ class EndEventButton(Button):
                     if removed:
                         role_removal_count += 1
 
+            # Delete event category and all channels
+            channels_deleted = 0
+            try:
+                guild = interaction.guild
+                category_name = f"🎮 {self.view_ref.event_type}"
+
+                # Find the event category
+                event_category = discord.utils.get(guild.categories, name=category_name)
+
+                if event_category:
+                    # Delete all channels in the category
+                    for channel in event_category.channels:
+                        try:
+                            await channel.delete(reason=f"Event {self.view_ref.title} ended")
+                            channels_deleted += 1
+                        except Exception as e:
+                            logger.error(f"Error deleting channel {channel.name}: {e}")
+
+                    # Delete the category itself
+                    try:
+                        await event_category.delete(reason=f"Event {self.view_ref.title} ended")
+                        logger.info(f"✅ Deleted category and {channels_deleted} channels for {self.view_ref.title}")
+                    except Exception as e:
+                        logger.error(f"Error deleting category: {e}")
+
+                # Delete event roles
+                allies_role = discord.utils.get(guild.roles, name=f"{self.view_ref.event_type} Allies")
+                axis_role = discord.utils.get(guild.roles, name=f"{self.view_ref.event_type} Axis")
+
+                for role in [allies_role, axis_role]:
+                    if role:
+                        try:
+                            await role.delete(reason=f"Event {self.view_ref.title} ended")
+                        except Exception as e:
+                            logger.error(f"Error deleting role {role.name}: {e}")
+
+            except Exception as e:
+                logger.error(f"Error cleaning up event channels/roles: {e}")
+
             # Disable all buttons
             for item in self.view_ref.children:
                 item.disabled = True
@@ -1200,6 +1334,7 @@ class EndEventButton(Button):
                 f"✅ **Event Ended Successfully!**\n"
                 f"📊 **{len(participants)}** participants saved to database\n"
                 f"🎭 **{role_removal_count}** event roles removed\n"
+                f"📁 **{channels_deleted}** channels deleted\n"
                 f"🔒 Signup disabled",
                 ephemeral=True
             )
