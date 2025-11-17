@@ -842,22 +842,25 @@ class MapVoting(commands.Cog):
     @app_commands.describe(message_id="The ID of the vote message to end")
     async def endvote(self, interaction: discord.Interaction, message_id: str):
         """Manually end an active vote"""
-        
+
         if message_id not in self.active_votes or not self.active_votes[message_id]['active']:
             await interaction.response.send_message("❌ No active vote found with that message ID.", ephemeral=True)
             return
-        
+
         vote_data = self.active_votes[message_id]
-        
+
         # Check permissions - only creator or admins can end vote
-        if (vote_data['creator_id'] != interaction.user.id and 
+        if (vote_data['creator_id'] != interaction.user.id and
             not any(role.name in ADMIN_ROLES for role in interaction.user.roles)):
             await interaction.response.send_message(
-                "❌ You can only end votes you created, or you need admin permissions.", 
+                "❌ You can only end votes you created, or you need admin permissions.",
                 ephemeral=True
             )
             return
-        
+
+        # Defer to prevent timeout when fetching message
+        await interaction.response.defer()
+
         await self.end_vote_manually(interaction, message_id, vote_data)
 
     async def end_vote_manually(self, interaction: discord.Interaction, message_id: str, vote_data: Dict):
@@ -888,14 +891,14 @@ class MapVoting(commands.Cog):
             
             # Post final results
             results = self.get_vote_results_text(final_votes)
-            await interaction.response.send_message(f"🏁 **Vote Ended Manually - Final Results:**\n{results}")
-            
+            await interaction.followup.send(f"🏁 **Vote Ended Manually - Final Results:**\n{results}")
+
             # Log the action
-            self.vote_db.log_vote_action(int(message_id), 'vote_ended_manually', 
+            self.vote_db.log_vote_action(int(message_id), 'vote_ended_manually',
                                        interaction.user.id, results)
-            
+
         except Exception as e:
-            await interaction.response.send_message(f"❌ Error ending vote: {e}", ephemeral=True)
+            await interaction.followup.send(f"❌ Error ending vote: {e}", ephemeral=True)
 
     @app_commands.command(name="listvotes")
     async def list_votes(self, interaction: discord.Interaction):
