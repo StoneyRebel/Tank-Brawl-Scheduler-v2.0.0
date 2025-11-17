@@ -81,16 +81,18 @@ class ArmorEvents(commands.Cog):
 
         # Create event channels (category, text, voice)
         event_channels = await self.create_event_channels(interaction.guild, title)
-        event_text_channel = event_channels['text_channel'] if event_channels else interaction.channel
+        event_text_channel = event_channels['text_channel'] if event_channels else None
 
-        # Create event signup with full functionality
+        # Create event signup with full functionality - POST IN ORIGINAL CHANNEL
         view = EventSignupView(title, description, event_datetime, title, event_id)
         embed = view.build_embed(interaction.user)
-        message = await event_text_channel.send(embed=embed, view=view)
+        message = await interaction.channel.send(embed=embed, view=view)
         view.message = message
 
-        # Auto-create map vote in event text channel
-        map_vote_success = await self.create_map_vote(event_text_channel, event_datetime, event_id)
+        # Auto-create map vote in event text channel (if created)
+        map_vote_success = False
+        if event_text_channel:
+            map_vote_success = await self.create_map_vote(event_text_channel, event_datetime, event_id)
 
         # Response
         response = f"✅ **{title}** created!"
@@ -136,15 +138,17 @@ class ArmorEvents(commands.Cog):
         return presets.get(event_type, presets["custom"])
 
     async def create_event_channels(self, guild: discord.Guild, event_title: str):
-        """Create category, text, and voice channels for an event"""
+        """Create text and voice channels for an event in existing category"""
         try:
             logger.info(f"📁 Creating channels for event: {event_title}")
 
-            # Create category
-            category = await guild.create_category(
-                name=f"🎮 {event_title}",
-                reason=f"Event channels for {event_title}"
-            )
+            # Get existing category by ID
+            EVENTS_CATEGORY_ID = 1368336239832338552
+            category = guild.get_channel(EVENTS_CATEGORY_ID)
+
+            if not category:
+                logger.error(f"❌ Category {EVENTS_CATEGORY_ID} not found!")
+                return None
 
             # Create roles (they should already exist or will be created on signup)
             allies_role = discord.utils.get(guild.roles, name=f"{event_title} Allies")
@@ -1277,30 +1281,24 @@ class EndEventButton(Button):
                     if removed:
                         role_removal_count += 1
 
-            # Delete event category and all channels
+            # Delete event-specific channels (but NOT the category)
             channels_deleted = 0
             try:
                 guild = interaction.guild
-                category_name = f"🎮 {self.view_ref.event_type}"
 
-                # Find the event category
-                event_category = discord.utils.get(guild.categories, name=category_name)
+                # Find and delete channels for this specific event (by name matching)
+                text_channel_name = f"📋-{self.view_ref.title.lower().replace(' ', '-')}"
+                allies_voice_name = f"🗾 Allies - {self.view_ref.title}"
+                axis_voice_name = f"🔵 Axis - {self.view_ref.title}"
 
-                if event_category:
-                    # Delete all channels in the category
-                    for channel in event_category.channels:
+                for channel in guild.channels:
+                    if channel.name in [text_channel_name, allies_voice_name, axis_voice_name]:
                         try:
                             await channel.delete(reason=f"Event {self.view_ref.title} ended")
                             channels_deleted += 1
+                            logger.info(f"✅ Deleted channel: {channel.name}")
                         except Exception as e:
                             logger.error(f"Error deleting channel {channel.name}: {e}")
-
-                    # Delete the category itself
-                    try:
-                        await event_category.delete(reason=f"Event {self.view_ref.title} ended")
-                        logger.info(f"✅ Deleted category and {channels_deleted} channels for {self.view_ref.title}")
-                    except Exception as e:
-                        logger.error(f"Error deleting category: {e}")
 
                 # Delete event roles
                 allies_role = discord.utils.get(guild.roles, name=f"{self.view_ref.event_type} Allies")
