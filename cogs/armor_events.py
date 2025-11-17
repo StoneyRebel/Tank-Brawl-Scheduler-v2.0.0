@@ -22,20 +22,15 @@ class ArmorEvents(commands.Cog):
 
     @app_commands.command(name="schedule_event")
     @app_commands.describe(
-        event_type="Type of armor event",
+        title="Event title (e.g., 'Saturday Tank Brawl #1')",
+        description="Event description and rules (optional)",
         date="Date in YYYY-MM-DD format (e.g., 2025-06-15)",
         time="Time in HH:MM format, 24-hour (e.g., 20:00) - EST timezone",
         map_vote_channel="Channel for map vote (optional - defaults to current channel)"
     )
-    @app_commands.choices(event_type=[
-        app_commands.Choice(name="Saturday Brawl", value="saturday_brawl"),
-        app_commands.Choice(name="Sunday Operations", value="sunday_ops"),
-        app_commands.Choice(name="Training Event", value="training"),
-        app_commands.Choice(name="Tournament", value="tournament"),
-        app_commands.Choice(name="Custom Event", value="custom")
-    ])
-    async def schedule_event(self, interaction: discord.Interaction, event_type: app_commands.Choice[str],
-                           date: str = None, time: str = None, map_vote_channel: discord.TextChannel = None):
+    async def schedule_event(self, interaction: discord.Interaction, title: str,
+                           description: str = None, date: str = None, time: str = None,
+                           map_vote_channel: discord.TextChannel = None):
 
         if not any(role.name in ADMIN_ROLES for role in interaction.user.roles):
             await interaction.response.send_message("❌ You need admin permissions.", ephemeral=True)
@@ -66,37 +61,38 @@ class ArmorEvents(commands.Cog):
                 await interaction.followup.send("❌ Invalid date/time format.", ephemeral=True)
                 return
 
-        # Get preset (no custom title, use default)
-        preset = self.get_event_preset(event_type.value)
-        
+        # Use provided title and description or defaults
+        if not description:
+            description = "**Victory Condition:** Team with the most time on the middle cap wins.\n**Format:** 4v4 Crew Battles"
+
         # Create event in database (with error handling)
         try:
             event_id = self.db.create_event(
                 guild_id=interaction.guild.id,
                 channel_id=interaction.channel.id,
                 creator_id=interaction.user.id,
-                title=preset["title"],
-                description=preset["description"],
+                title=title,
+                description=description,
                 event_time=event_datetime,
-                event_type=event_type.value
+                event_type="custom"
             )
         except Exception as e:
             # If database fails, create without it
             logger.error(f"Database error: {e}")
             event_id = 99999  # Fake ID
-        
+
         # Create event signup with full functionality
-        view = EventSignupView(preset["title"], preset["description"], event_datetime, event_type.value, event_id)
+        view = EventSignupView(title, description, event_datetime, title, event_id)
         embed = view.build_embed(interaction.user)
         message = await interaction.channel.send(embed=embed, view=view)
         view.message = message
-        
+
         # Auto-create map vote (separate message) - Use selected channel or current channel
         vote_channel = map_vote_channel if map_vote_channel else interaction.channel
         map_vote_success = await self.create_map_vote(vote_channel, event_datetime, event_id)
-        
+
         # Response
-        response = f"✅ {event_type.value.replace('_', ' ').title()} created!"
+        response = f"✅ **{title}** created!"
         if event_datetime:
             response += f"\n📅 <t:{int(event_datetime.timestamp())}:F>"
 
@@ -135,62 +131,52 @@ class ArmorEvents(commands.Cog):
         }
         return presets.get(event_type, presets["custom"])
 
-    async def assign_event_role(self, user: discord.Member, event_type: str, team: str = None):
-        """Assign team-specific roles based on event type and team"""
+    async def assign_event_role(self, user: discord.Member, event_title: str, team: str = None):
+        """Assign team-specific roles based on event title"""
         try:
             guild = user.guild
-            
-            # Create event name for roles (make it clean)
-            event_names = {
-                "saturday_brawl": "Saturday Brawl",
-                "sunday_ops": "Sunday Ops", 
-                "training": "Training",
-                "tournament": "Tournament",
-                "custom": "Custom Event"
-            }
-            
-            event_name = event_names.get(event_type, "Custom Event")
-            
-            logger.info(f"🎭 Assigning role for {user.display_name} - Event: {event_name}, Team: {team}")
+
+            # Use event title directly for role names
+            logger.info(f"🎭 Assigning role for {user.display_name} - Event: {event_title}, Team: {team}")
             
             # Determine team name and role color
             if team == "A":
                 team_name = "Allies"
                 role_color = discord.Color.green()
             elif team == "B":
-                team_name = "Axis"  
+                team_name = "Axis"
                 role_color = discord.Color.red()
             else:
                 # No team specified, just assign general participant role
-                role_name = f"{event_name} Participant"
+                role_name = f"{event_title} Participant"
                 role_color = discord.Color.blue()
                 team_name = None
-            
-            # Create the role name
+
+            # Create the role name using event title
             if team_name:
-                role_name = f"{event_name} {team_name}"
+                role_name = f"{event_title} {team_name}"
             else:
-                role_name = f"{event_name} Participant"
-            
+                role_name = f"{event_title} Participant"
+
             # Find or create the role
             target_role = discord.utils.get(guild.roles, name=role_name)
-            
+
             if not target_role:
                 try:
                     target_role = await guild.create_role(
                         name=role_name,
                         color=role_color,
                         mentionable=True,
-                        reason=f"Auto-created for {event_name} events"
+                        reason=f"Auto-created for {event_title}"
                     )
                     logger.info(f"✅ Created new role: {role_name}")
                 except Exception as e:
                     logger.error(f"❌ Failed to create role {role_name}: {e}")
                     return False
-            
+
             # Assign the role to the user
             if target_role not in user.roles:
-                await user.add_roles(target_role, reason=f"Joined {event_name} as {team_name or 'participant'}")
+                await user.add_roles(target_role, reason=f"Joined {event_title} as {team_name or 'participant'}")
                 logger.info(f"✅ Assigned {role_name} to {user.display_name}")
                 return True
             else:
@@ -201,39 +187,28 @@ class ArmorEvents(commands.Cog):
             logger.error(f"❌ Error assigning role: {e}")
             return False
 
-    async def remove_event_role(self, user: discord.Member, event_type: str):
+    async def remove_event_role(self, user: discord.Member, event_title: str):
         """Remove all event-specific roles when user leaves"""
         try:
             guild = user.guild
-            
-            # Event name mapping
-            event_names = {
-                "saturday_brawl": "Saturday Brawl",
-                "sunday_ops": "Sunday Ops",
-                "training": "Training", 
-                "tournament": "Tournament",
-                "custom": "Custom Event"
-            }
-            
-            event_name = event_names.get(event_type, "Custom Event")
-            
+
             # Remove all possible roles for this event
             roles_to_remove = []
-            
+
             # Check for team-specific roles
-            allies_role = discord.utils.get(guild.roles, name=f"{event_name} Allies")
-            axis_role = discord.utils.get(guild.roles, name=f"{event_name} Axis")
-            participant_role = discord.utils.get(guild.roles, name=f"{event_name} Participant")
-            
+            allies_role = discord.utils.get(guild.roles, name=f"{event_title} Allies")
+            axis_role = discord.utils.get(guild.roles, name=f"{event_title} Axis")
+            participant_role = discord.utils.get(guild.roles, name=f"{event_title} Participant")
+
             for role in [allies_role, axis_role, participant_role]:
                 if role and role in user.roles:
                     roles_to_remove.append(role)
-            
+
             if roles_to_remove:
-                await user.remove_roles(*roles_to_remove, reason=f"Left {event_name} event")
+                await user.remove_roles(*roles_to_remove, reason=f"Left {event_title}")
                 logger.info(f"🗑️ Removed {len(roles_to_remove)} event roles from {user.display_name}")
                 return True
-            
+
         except Exception as e:
             logger.error(f"❌ Error removing roles: {e}")
             return False
@@ -1205,7 +1180,7 @@ class EndEventButton(Button):
             role_removal_count = 0
             for user, team, role_type, crew_name in participants:
                 if team:  # Only remove roles for team members
-                    removed = await armor_events_cog.remove_event_roles(user, self.view_ref.event_type)
+                    removed = await armor_events_cog.remove_event_role(user, self.view_ref.event_type)
                     if removed:
                         role_removal_count += 1
 
