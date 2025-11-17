@@ -25,12 +25,10 @@ class ArmorEvents(commands.Cog):
         title="Event title (e.g., 'Saturday Tank Brawl #1')",
         description="Event description and rules (optional)",
         date="Date in YYYY-MM-DD format (e.g., 2025-06-15)",
-        time="Time in HH:MM format, 24-hour (e.g., 20:00) - EST timezone",
-        map_vote_channel="Channel for map vote (optional - defaults to current channel)"
+        time="Time in HH:MM format, 24-hour (e.g., 20:00) - EST timezone"
     )
     async def schedule_event(self, interaction: discord.Interaction, title: str,
-                           description: str = None, date: str = None, time: str = None,
-                           map_vote_channel: discord.TextChannel = None):
+                           description: str = None, date: str = None, time: str = None):
 
         if not any(role.name in ADMIN_ROLES for role in interaction.user.roles):
             await interaction.response.send_message("❌ You need admin permissions.", ephemeral=True)
