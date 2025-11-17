@@ -345,17 +345,17 @@ class EventSignupView(View):
                           inline=False)
         
         # Commanders
-        commanders = f"**Allies:** {self.commander_a.mention if self.commander_a else '[Unclaimed]'}\n"
-        commanders += f"**Axis:** {self.commander_b.mention if self.commander_b else '[Unclaimed]'}"
+        commanders = f"**Allies:** {self.commander_a.display_name if self.commander_a else '[Unclaimed]'}\n"
+        commanders += f"**Axis:** {self.commander_b.display_name if self.commander_b else '[Unclaimed]'}"
         embed.add_field(name="👑 Commanders", value=commanders, inline=False)
 
         # Format crews
         def format_crew(slot):
             if slot is None:
                 return "[Empty Slot]"
-            cmd = slot['commander'].mention
-            gun = slot['gunner'].mention if slot['gunner'] != slot['commander'] else "*Self*"
-            drv = slot['driver'].mention if slot['driver'] != slot['commander'] else "*Self*"
+            cmd = slot['commander'].display_name
+            gun = slot['gunner'].display_name if slot['gunner'] != slot['commander'] else "*Self*"
+            drv = slot['driver'].display_name if slot['driver'] != slot['commander'] else "*Self*"
             crew_tag = f"[{slot['crew_name']}]"
             if slot.get('persistent_crew_id'):
                 crew_tag += " 🔗"  # Indicate it's a persistent crew
@@ -368,7 +368,7 @@ class EventSignupView(View):
         embed.add_field(name="🔵 Axis Crews", value=axis_text, inline=True)
         
         # Available recruits (changed from solo players)
-        recruit_text = "\n".join([f"- {user.mention}" for user in self.recruits]) or "[None Available]"
+        recruit_text = "\n".join([f"- {user.display_name}" for user in self.recruits]) or "[None Available]"
         embed.add_field(name="🎯 Available Recruits", value=recruit_text, inline=False)
         
         # Add legend
