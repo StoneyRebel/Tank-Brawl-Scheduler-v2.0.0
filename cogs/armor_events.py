@@ -871,7 +871,7 @@ class RecruitSelect(Select):
         
         # Now show position selection
         await interaction.response.send_message(
-            f"Selected **{selected_recruit.display_name}** - choose their position:",
+            f"Selected {selected_recruit.mention} - choose their position:",
             view=PositionSelectView(self.parent),
             ephemeral=True
         )
@@ -907,7 +907,7 @@ class AssignGunnerButton(Button):
         await self.parent.main_view.update_embed(interaction)
         team_name = "Allies" if self.parent.team == "A" else "Axis"
         await interaction.response.send_message(
-            f"✅ **{recruit.display_name}** recruited as gunner for **{crew['crew_name']}**! {team_name} role assigned.",
+            f"✅ {recruit.mention} recruited as gunner for **{crew['crew_name']}**! {team_name} role assigned.",
             ephemeral=True
         )
 
@@ -934,7 +934,7 @@ class AssignDriverButton(Button):
         await self.parent.main_view.update_embed(interaction)
         team_name = "Allies" if self.parent.team == "A" else "Axis"
         await interaction.response.send_message(
-            f"✅ **{recruit.display_name}** recruited as driver for **{crew['crew_name']}**! {team_name} role assigned.",
+            f"✅ {recruit.mention} recruited as driver for **{crew['crew_name']}**! {team_name} role assigned.",
             ephemeral=True
         )
 
