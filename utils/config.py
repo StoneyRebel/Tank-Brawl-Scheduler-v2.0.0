@@ -1,7 +1,7 @@
 # utils/config.py - Configuration constants and settings
 
 # Event configuration
-MAX_CREWS_PER_TEAM = 6
+MAX_CREWS_PER_TEAM = 4
 DEFAULT_EVENT_DURATION_HOURS = 2
 REMINDER_TIMES = [60, 30, 10]  # Minutes before event
 
