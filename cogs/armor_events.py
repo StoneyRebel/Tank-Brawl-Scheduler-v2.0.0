@@ -307,30 +307,7 @@ class ArmorEvents(commands.Cog):
             logger.error(f"❌ DEBUG: Error creating map vote: {e}")
             return False
 
-    @app_commands.command(name="list_roles")
-    async def list_roles(self, interaction: discord.Interaction):
-        """List all event roles in the server"""
-        if not any(role.name in ADMIN_ROLES for role in interaction.user.roles):
-            await interaction.response.send_message("❌ Admin only!", ephemeral=True)
-            return
-        
-        # Find all roles that look like event roles
-        event_roles = []
-        for role in interaction.guild.roles:
-            if any(keyword in role.name for keyword in ["Participant", "Allies", "Axis", "Saturday", "Sunday"]):
-                event_roles.append(f"• **{role.name}** - {len(role.members)} members")
-        
-        if not event_roles:
-            await interaction.response.send_message("No event roles found.", ephemeral=True)
-            return
-        
-        embed = discord.Embed(
-            title="🎭 Event Roles",
-            description="\n".join(event_roles[:20]),  # Limit to 20 roles
-            color=0x0099ff
-        )
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+    # NOTE: /list_roles removed - use /event_roles list instead
 
 class EventSignupView(View):
     def __init__(self, title, description, event_time=None, event_type="custom", event_id=None):
