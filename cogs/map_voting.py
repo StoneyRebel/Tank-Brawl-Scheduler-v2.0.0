@@ -64,7 +64,7 @@ class VoteDatabase:
     def init_database(self):
         """Initialize vote database with enhanced schema"""
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         # Enhanced votes table with better persistence fields
@@ -124,7 +124,7 @@ class VoteDatabase:
                    duration_minutes: int, event_id: int = None, auto_created: bool = False,
                    embed_title: str = None, embed_description: str = None) -> int:
         """Create a new vote record with enhanced persistence data"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -141,7 +141,7 @@ class VoteDatabase:
 
     def update_vote_status(self, message_id: int, active: bool):
         """Update vote active status"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE votes SET active = ?, last_updated = CURRENT_TIMESTAMP 
@@ -152,7 +152,7 @@ class VoteDatabase:
 
     def mark_view_restored(self, message_id: int):
         """Mark that a vote's view has been restored after bot restart"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE votes SET view_restored = 1, last_updated = CURRENT_TIMESTAMP 
@@ -163,7 +163,7 @@ class VoteDatabase:
 
     def cast_vote(self, message_id: int, user_id: int, map_choice: str):
         """Cast or update a user's vote"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         # Get vote_id
@@ -187,7 +187,7 @@ class VoteDatabase:
 
     def get_vote_results(self, message_id: int) -> Dict[str, int]:
         """Get current vote results"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -205,7 +205,7 @@ class VoteDatabase:
 
     def get_active_votes(self) -> List[Dict]:
         """Get all active votes for restoration after restart"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -231,7 +231,7 @@ class VoteDatabase:
 
     def get_total_votes(self, message_id: int) -> int:
         """Get total number of votes for a message"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -247,7 +247,7 @@ class VoteDatabase:
 
     def cleanup_expired_votes(self):
         """Clean up votes that ended more than 24 hours ago"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         # Mark expired votes as inactive
@@ -266,7 +266,7 @@ class VoteDatabase:
 
     def log_vote_action(self, message_id: int, action: str, user_id: int = None, details: str = None):
         """Log vote-related actions"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         # Get vote_id

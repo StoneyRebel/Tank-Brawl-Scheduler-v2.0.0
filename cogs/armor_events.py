@@ -239,17 +239,19 @@ class ArmorEvents(commands.Cog):
         try:
             logger.info(f"🔍 DEBUG: Looking for MapVoting cog...")
             map_voting_cog = self.bot.get_cog('MapVoting')
-            
+
             if not map_voting_cog:
                 logger.warning(f"❌ DEBUG: MapVoting cog not found!")
                 logger.info(f"Available cogs: {list(self.bot.cogs.keys())}")
                 return False
-            
+
             logger.info(f"✅ DEBUG: Found MapVoting cog")
-            
+
+            # Setup timezone
+            est = pytz.timezone("US/Eastern")
+
             # Calculate vote duration with timezone awareness
             if event_datetime:
-                est = pytz.timezone("US/Eastern")
                 now = datetime.datetime.now(est)
                 
                 # Calculate when the vote should END (1 hour before event)
@@ -971,28 +973,28 @@ class EditGunnerView(View):
 class UpdateGunnerSelect(UserSelect):
     def __init__(self, parent):
         super().__init__(placeholder="Select new gunner (or leave empty to clear)", min_values=0, max_values=1)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
         if self.values:
             new_gunner = self.values[0]
-            if self.parent.main_view.is_user_registered(new_gunner):
+            if self.view_parent.main_view.is_user_registered(new_gunner):
                 await interaction.response.send_message("❌ User already registered!", ephemeral=True)
                 return
-            
+
             # Assign team role to new gunner
             armor_events_cog = interaction.client.get_cog('ArmorEvents')
             if armor_events_cog:
-                await armor_events_cog.assign_event_role(new_gunner, self.parent.main_view.event_type, self.parent.team)
-            
-            self.parent.crew['gunner'] = new_gunner
-            team_name = "Allies" if self.parent.team == "A" else "Axis" 
+                await armor_events_cog.assign_event_role(new_gunner, self.view_parent.main_view.event_type, self.view_parent.team)
+
+            self.view_parent.crew['gunner'] = new_gunner
+            team_name = "Allies" if self.view_parent.team == "A" else "Axis"
             await interaction.response.send_message(f"✅ Gunner updated to {new_gunner.mention}! {team_name} role assigned.", ephemeral=True)
         else:
-            self.parent.crew['gunner'] = self.parent.crew['commander']
+            self.view_parent.crew['gunner'] = self.view_parent.crew['commander']
             await interaction.response.send_message("✅ Gunner cleared - commander will gun!", ephemeral=True)
-        
-        await self.parent.main_view.update_embed(interaction)
+
+        await self.view_parent.main_view.update_embed(interaction)
 
 class EditDriverView(View):
     def __init__(self, parent):
@@ -1003,28 +1005,28 @@ class EditDriverView(View):
 class UpdateDriverSelect(UserSelect):
     def __init__(self, parent):
         super().__init__(placeholder="Select new driver (or leave empty to clear)", min_values=0, max_values=1)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
         if self.values:
             new_driver = self.values[0]
-            if self.parent.main_view.is_user_registered(new_driver):
+            if self.view_parent.main_view.is_user_registered(new_driver):
                 await interaction.response.send_message("❌ User already registered!", ephemeral=True)
                 return
-            
+
             # Assign team role to new driver
             armor_events_cog = interaction.client.get_cog('ArmorEvents')
             if armor_events_cog:
-                await armor_events_cog.assign_event_role(new_driver, self.parent.main_view.event_type, self.parent.team)
-                
-            self.parent.crew['driver'] = new_driver
-            team_name = "Allies" if self.parent.team == "A" else "Axis"
+                await armor_events_cog.assign_event_role(new_driver, self.view_parent.main_view.event_type, self.view_parent.team)
+
+            self.view_parent.crew['driver'] = new_driver
+            team_name = "Allies" if self.view_parent.team == "A" else "Axis"
             await interaction.response.send_message(f"✅ Driver updated to {new_driver.mention}! {team_name} role assigned.", ephemeral=True)
         else:
-            self.parent.crew['driver'] = self.parent.crew['commander']
+            self.view_parent.crew['driver'] = self.view_parent.crew['commander']
             await interaction.response.send_message("✅ Driver cleared - commander will drive!", ephemeral=True)
-        
-        await self.parent.main_view.update_embed(interaction)
+
+        await self.view_parent.main_view.update_embed(interaction)
 
 class EditCrewNameModal(Modal):
     def __init__(self, parent):
@@ -1062,21 +1064,21 @@ class CrewSelectView(View):
 class GunnerSelect(UserSelect):
     def __init__(self, parent):
         super().__init__(placeholder="Select Gunner", min_values=1, max_values=1)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        if self.parent.main_view.is_user_registered(self.values[0]):
+        if self.view_parent.main_view.is_user_registered(self.values[0]):
             await interaction.response.send_message("❌ User already registered!", ephemeral=True)
             return
-        
-        self.parent.gunner = self.values[0]
-        
+
+        self.view_parent.gunner = self.values[0]
+
         # Assign team role to gunner
         armor_events_cog = interaction.client.get_cog('ArmorEvents')
         if armor_events_cog:
-            await armor_events_cog.assign_event_role(self.parent.gunner, self.parent.main_view.event_type, self.parent.team)
-        
-        await interaction.response.send_message(view=DriverSelectView(self.parent), ephemeral=True)
+            await armor_events_cog.assign_event_role(self.view_parent.gunner, self.view_parent.main_view.event_type, self.view_parent.team)
+
+        await interaction.response.send_message(view=DriverSelectView(self.view_parent), ephemeral=True)
 
 class DriverSelectView(View):
     def __init__(self, parent):
@@ -1087,21 +1089,21 @@ class DriverSelectView(View):
 class DriverSelect(UserSelect):
     def __init__(self, parent):
         super().__init__(placeholder="Select Driver", min_values=1, max_values=1)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        if self.parent.main_view.is_user_registered(self.values[0]):
+        if self.view_parent.main_view.is_user_registered(self.values[0]):
             await interaction.response.send_message("❌ User already registered!", ephemeral=True)
             return
-        
+
         driver = self.values[0]
-        
+
         # Assign team role to driver
         armor_events_cog = interaction.client.get_cog('ArmorEvents')
         if armor_events_cog:
-            await armor_events_cog.assign_event_role(driver, self.parent.main_view.event_type, self.parent.team)
-        
-        await interaction.response.send_modal(CrewNameModal(self.parent, driver))
+            await armor_events_cog.assign_event_role(driver, self.view_parent.main_view.event_type, self.view_parent.team)
+
+        await interaction.response.send_modal(CrewNameModal(self.view_parent, driver))
 
 class CrewNameModal(Modal):
     def __init__(self, parent, driver):

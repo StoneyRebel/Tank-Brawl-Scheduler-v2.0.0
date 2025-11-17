@@ -10,11 +10,12 @@ logger = logging.getLogger(__name__)
 class EventDatabase:
     def __init__(self, db_path='tank_brawl.db'):
         self.db_path = db_path
+        self.timeout = 30.0  # 30 second timeout for database operations
         self.init_database()
 
     def init_database(self):
         """Initialize all database tables"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         # Events table
@@ -142,7 +143,7 @@ class EventDatabase:
                     title: str, description: str = None, event_time: datetime.datetime = None,
                     event_type: str = "custom") -> int:
         """Create a new event and return its ID"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -163,7 +164,7 @@ class EventDatabase:
 
     def get_event_by_id(self, event_id: int) -> Optional[Tuple]:
         """Get event data by ID"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -177,7 +178,7 @@ class EventDatabase:
 
     def get_guild_events(self, guild_id: int, status: str = None, limit: int = 10) -> List[Tuple]:
         """Get events for a guild, optionally filtered by status"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         if status:
@@ -203,7 +204,7 @@ class EventDatabase:
 
     def update_event_message(self, event_id: int, message_id: int):
         """Update the message ID for an event"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE events SET message_id = ?, updated_at = CURRENT_TIMESTAMP 
@@ -214,7 +215,7 @@ class EventDatabase:
 
     def update_event_status(self, event_id: int, status: str):
         """Update event status"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE events SET status = ?, updated_at = CURRENT_TIMESTAMP 
@@ -227,7 +228,7 @@ class EventDatabase:
     def save_signup(self, event_id: int, user_id: int, signup_type: str, 
                    team: str = None, role: str = None, crew_name: str = None, crew_slot: int = None):
         """Save or update a user's signup"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         # Remove existing signup for this user in this event
@@ -251,7 +252,7 @@ class EventDatabase:
 
     def get_event_signups(self, event_id: int) -> List[Dict]:
         """Get all signups for an event"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -276,7 +277,7 @@ class EventDatabase:
 
     def remove_signup(self, event_id: int, user_id: int):
         """Remove a user's signup"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         cursor.execute('DELETE FROM signups WHERE event_id = ? AND user_id = ?', (event_id, user_id))
         conn.commit()
@@ -285,7 +286,7 @@ class EventDatabase:
     # Event history/logging methods
     def log_event_action(self, event_id: int, action: str, user_id: int = None, details: str = None):
         """Log an action for audit trail"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO event_history (event_id, action, user_id, details)
@@ -296,7 +297,7 @@ class EventDatabase:
 
     def get_event_history(self, event_id: int, limit: int = 20) -> List[Tuple]:
         """Get recent history for an event"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         cursor.execute('''
             SELECT action, user_id, details, timestamp 
@@ -312,7 +313,7 @@ class EventDatabase:
     # User statistics methods
     def get_user_stats(self, user_id: int, guild_id: int) -> Optional[Dict]:
         """Get user statistics"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         cursor.execute('''
             SELECT events_participated, events_commanded, events_created, 
@@ -338,7 +339,7 @@ class EventDatabase:
 
     def update_user_stat(self, user_id: int, guild_id: int, stat_name: str, value: int):
         """Update a user statistic"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         # Insert or update user stats
@@ -355,7 +356,7 @@ class EventDatabase:
 
     def get_leaderboard(self, guild_id: int, stat_type: str = 'events_participated', limit: int = 10) -> List[Tuple]:
         """Get leaderboard for a specific statistic"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         valid_stats = ['events_participated', 'events_commanded', 'events_created', 'elo_rating']
@@ -378,7 +379,7 @@ class EventDatabase:
     def create_persistent_crew(self, guild_id: int, crew_name: str, commander_id: int, 
                              gunner_id: int = None, driver_id: int = None, description: str = None) -> int:
         """Create a persistent crew"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         try:
@@ -400,7 +401,7 @@ class EventDatabase:
 
     def get_user_crews(self, user_id: int, guild_id: int) -> List[Dict]:
         """Get all crews a user is part of"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -429,7 +430,7 @@ class EventDatabase:
 
     def update_crew_record(self, crew_id: int, won: bool):
         """Update a crew's win/loss record"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         if won:
@@ -451,7 +452,7 @@ class EventDatabase:
     # Guild settings methods
     def get_guild_settings(self, guild_id: int) -> Dict:
         """Get guild settings, create default if not exists"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         cursor.execute('SELECT * FROM guild_settings WHERE guild_id = ?', (guild_id,))
@@ -492,7 +493,7 @@ class EventDatabase:
 
     def update_guild_setting(self, guild_id: int, setting_name: str, value: Any):
         """Update a specific guild setting"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         # Ensure guild settings exist
@@ -513,7 +514,7 @@ class EventDatabase:
     # Reminder system methods
     def add_reminder(self, event_id: int, reminder_time: datetime.datetime, reminder_type: str = 'before_event'):
         """Add a reminder to the queue"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -526,7 +527,7 @@ class EventDatabase:
 
     def get_pending_reminders(self) -> List[Tuple]:
         """Get all pending reminders that should be sent"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         now = datetime.datetime.now()
@@ -544,7 +545,7 @@ class EventDatabase:
 
     def mark_reminder_sent(self, reminder_id: int):
         """Mark a reminder as sent"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         cursor.execute('UPDATE reminder_queue SET sent = 1 WHERE id = ?', (reminder_id,))
         conn.commit()
@@ -553,7 +554,7 @@ class EventDatabase:
     # Utility methods
     def get_event_guild_id(self, event_id: int) -> Optional[int]:
         """Get guild ID for an event"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         cursor.execute('SELECT guild_id FROM events WHERE id = ?', (event_id,))
         result = cursor.fetchone()
@@ -562,7 +563,7 @@ class EventDatabase:
 
     def cleanup_old_data(self, days_old: int = 90):
         """Clean up old completed events and related data"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         cutoff_date = datetime.datetime.now() - datetime.timedelta(days=days_old)
@@ -594,7 +595,7 @@ class EventDatabase:
 
     def get_database_stats(self) -> Dict[str, int]:
         """Get database statistics"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
         
         stats = {}

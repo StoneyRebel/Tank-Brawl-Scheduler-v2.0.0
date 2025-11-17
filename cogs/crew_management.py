@@ -238,7 +238,7 @@ class CrewManagement(commands.Cog):
     # Helper methods
     def get_crew_by_name(self, guild_id: int, crew_name: str) -> Optional[Dict]:
         """Get crew by name"""
-        conn = sqlite3.connect(self.db.db_path)
+        conn = sqlite3.connect(self.db.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -265,7 +265,7 @@ class CrewManagement(commands.Cog):
 
     def get_all_guild_crews(self, guild_id: int, page: int = 1, per_page: int = 10) -> List[Dict]:
         """Get all crews in a guild with pagination"""
-        conn = sqlite3.connect(self.db.db_path)
+        conn = sqlite3.connect(self.db.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         offset = (page - 1) * per_page
@@ -427,7 +427,7 @@ class CrewManagement(commands.Cog):
         else:
             # Regular member leaving
             # Update database to remove user from crew
-            conn = sqlite3.connect(self.db.db_path)
+            conn = sqlite3.connect(self.db.db_path, timeout=30.0)
             cursor = conn.cursor()
             
             if crew['gunner_id'] == user_id:
@@ -771,10 +771,10 @@ class CrewInviteUserRoleView(View):
 class InviteUserSelect(UserSelect):
     def __init__(self, parent):
         super().__init__(placeholder="Select user to invite", min_values=1, max_values=1)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        self.parent.selected_user = self.values[0]
+        self.view_parent.selected_user = self.values[0]
         await interaction.response.send_message(
             f"✅ Selected user: {self.values[0].mention}\nNow select a role and click Send Invite.",
             ephemeral=True
@@ -958,7 +958,7 @@ class AcceptCrewInviteButton(Button):
             return
         
         # Update database
-        conn = sqlite3.connect(self.parent.db.db_path)
+        conn = sqlite3.connect(self.parent.db.db_path, timeout=30.0)
         cursor = conn.cursor()
         
         field_name = f"{self.parent.role}_id"
@@ -1101,7 +1101,7 @@ class EditCrewNameModal(Modal):
         db = EventDatabase()
         
         try:
-            conn = sqlite3.connect(db.db_path)
+            conn = sqlite3.connect(db.db_path, timeout=30.0)
             cursor = conn.cursor()
             cursor.execute('''
                 UPDATE persistent_crews 
@@ -1147,7 +1147,7 @@ class EditCrewDescriptionModal(Modal):
         from utils.database import EventDatabase
         db = EventDatabase()
         
-        conn = sqlite3.connect(db.db_path)
+        conn = sqlite3.connect(db.db_path, timeout=30.0)
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE persistent_crews 
@@ -1236,7 +1236,7 @@ class ConfirmDisbandButton(Button):
 
     async def callback(self, interaction: discord.Interaction):
         # Mark crew as inactive
-        conn = sqlite3.connect(self.parent.db.db_path)
+        conn = sqlite3.connect(self.parent.db.db_path, timeout=30.0)
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE persistent_crews 
@@ -1296,7 +1296,7 @@ class RemoveMemberDropdown(Select):
         from utils.database import EventDatabase
         db = EventDatabase()
         
-        conn = sqlite3.connect(db.db_path)
+        conn = sqlite3.connect(db.db_path, timeout=30.0)
         cursor = conn.cursor()
         cursor.execute(f'''
             UPDATE persistent_crews 
