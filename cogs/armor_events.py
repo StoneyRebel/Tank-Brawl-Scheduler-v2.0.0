@@ -622,17 +622,41 @@ class RecruitPlayersButton(Button):
         self.view_ref = view
 
     async def callback(self, interaction: discord.Interaction):
-        # Check if user is a crew commander
-        if not self.view_ref.is_user_commander(interaction.user):
-            await interaction.response.send_message("⚠️ Only crew commanders can recruit players.", ephemeral=True)
-            return
-        
-        # Check if there are any recruits available
-        if not self.view_ref.recruits:
-            await interaction.response.send_message("⚠️ No recruits available to recruit.", ephemeral=True)
-            return
-        
-        await interaction.response.send_message(view=RecruitSelectionView(self.view_ref, interaction.user), ephemeral=True)
+        try:
+            # Check if user is a crew commander
+            crew, team, slot_index = self.view_ref.get_user_crew(interaction.user)
+
+            if not crew:
+                await interaction.response.send_message("⚠️ Only crew commanders can recruit players.", ephemeral=True)
+                return
+
+            # Check if there are any recruits available
+            if not self.view_ref.recruits:
+                await interaction.response.send_message("⚠️ No recruits available to recruit.", ephemeral=True)
+                return
+
+            # Check if crew has any empty positions
+            has_empty_position = (crew['gunner'] == crew['commander'] or crew['driver'] == crew['commander'])
+
+            if not has_empty_position:
+                await interaction.response.send_message(
+                    "⚠️ Your crew is full! You can still recruit to replace a crew member.",
+                    ephemeral=True
+                )
+                # Continue anyway to allow replacing crew members
+
+            logger.info(f"👥 {interaction.user.display_name} recruiting from pool of {len(self.view_ref.recruits)} recruits")
+
+            # Show recruit selection view
+            await interaction.response.send_message(
+                "**Select a recruit to add to your crew:**",
+                view=RecruitSelectionView(self.view_ref, interaction.user),
+                ephemeral=True
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Error in RecruitPlayersButton: {e}")
+            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
 
 class EditCrewButton(Button):
     def __init__(self, view):
@@ -895,7 +919,15 @@ class RecruitSelect(Select):
                 value=str(recruit.id),
                 description=f"Recruit {recruit.display_name}"
             ))
-        
+
+        # Ensure we have at least one option
+        if not options:
+            options.append(discord.SelectOption(
+                label="No recruits available",
+                value="0",
+                description="No recruits in pool"
+            ))
+
         super().__init__(
             placeholder="Select a recruit to add to your crew...",
             options=options[:25],  # Discord limit
@@ -905,27 +937,39 @@ class RecruitSelect(Select):
         self.parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        # Find the selected recruit
-        selected_id = int(self.values[0])
-        selected_recruit = None
-        
-        for recruit in self.parent.main_view.recruits:
-            if recruit.id == selected_id:
-                selected_recruit = recruit
-                break
-        
-        if not selected_recruit:
-            await interaction.response.send_message("❌ Recruit not found!", ephemeral=True)
-            return
-        
-        self.parent.selected_recruit = selected_recruit
-        
-        # Now show position selection
-        await interaction.response.send_message(
-            f"Selected {selected_recruit.mention} - choose their position:",
-            view=PositionSelectView(self.parent),
-            ephemeral=True
-        )
+        try:
+            # Find the selected recruit
+            selected_id = int(self.values[0])
+
+            if selected_id == 0:
+                await interaction.response.send_message("❌ No recruits available!", ephemeral=True)
+                return
+
+            selected_recruit = None
+
+            for recruit in self.parent.main_view.recruits:
+                if recruit.id == selected_id:
+                    selected_recruit = recruit
+                    break
+
+            if not selected_recruit:
+                await interaction.response.send_message("❌ Recruit not found!", ephemeral=True)
+                return
+
+            self.parent.selected_recruit = selected_recruit
+
+            logger.info(f"✅ Selected recruit: {selected_recruit.display_name}")
+
+            # Now show position selection
+            await interaction.response.send_message(
+                f"Selected **{selected_recruit.display_name}** - choose their position:",
+                view=PositionSelectView(self.parent),
+                ephemeral=True
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Error in RecruitSelect: {e}")
+            await interaction.response.send_message(f"❌ Error selecting recruit: {e}", ephemeral=True)
 
 class PositionSelectView(View):
     def __init__(self, parent):
@@ -941,26 +985,35 @@ class AssignGunnerButton(Button):
         self.parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        recruit = self.parent.selected_recruit
-        crew = self.parent.crew
-        
-        # Assign recruit as gunner
-        crew['gunner'] = recruit
-        
-        # Assign team role to the recruit
-        armor_events_cog = interaction.client.get_cog('ArmorEvents')
-        if armor_events_cog:
-            await armor_events_cog.assign_event_role(recruit, self.parent.main_view.event_type, self.parent.team)
-        
-        # Remove from recruit pool
-        self.parent.main_view.recruits.remove(recruit)
-        
-        await self.parent.main_view.update_embed(interaction)
-        team_name = "Allies" if self.parent.team == "A" else "Axis"
-        await interaction.response.send_message(
-            f"✅ {recruit.mention} recruited as gunner for **{crew['crew_name']}**! {team_name} role assigned.",
-            ephemeral=True
-        )
+        try:
+            recruit = self.parent.selected_recruit
+            crew = self.parent.crew
+
+            logger.info(f"🎯 Assigning {recruit.display_name} as gunner for {crew['crew_name']}")
+
+            # Assign recruit as gunner
+            crew['gunner'] = recruit
+
+            # Assign team role to the recruit
+            armor_events_cog = interaction.client.get_cog('ArmorEvents')
+            if armor_events_cog:
+                await armor_events_cog.assign_event_role(recruit, self.parent.main_view.event_type, self.parent.team)
+
+            # Remove from recruit pool
+            if recruit in self.parent.main_view.recruits:
+                self.parent.main_view.recruits.remove(recruit)
+
+            await self.parent.main_view.update_embed(interaction)
+            team_name = "Allies" if self.parent.team == "A" else "Axis"
+            await interaction.response.send_message(
+                f"✅ **{recruit.display_name}** recruited as gunner for **{crew['crew_name']}**! {team_name} role assigned.",
+                ephemeral=True
+            )
+            logger.info(f"✅ Successfully recruited {recruit.display_name} as gunner")
+
+        except Exception as e:
+            logger.error(f"❌ Error assigning gunner: {e}")
+            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
 
 class AssignDriverButton(Button):
     def __init__(self, parent):
@@ -968,26 +1021,35 @@ class AssignDriverButton(Button):
         self.parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        recruit = self.parent.selected_recruit
-        crew = self.parent.crew
-        
-        # Assign recruit as driver
-        crew['driver'] = recruit
-        
-        # Assign team role to the recruit
-        armor_events_cog = interaction.client.get_cog('ArmorEvents')
-        if armor_events_cog:
-            await armor_events_cog.assign_event_role(recruit, self.parent.main_view.event_type, self.parent.team)
-        
-        # Remove from recruit pool
-        self.parent.main_view.recruits.remove(recruit)
-        
-        await self.parent.main_view.update_embed(interaction)
-        team_name = "Allies" if self.parent.team == "A" else "Axis"
-        await interaction.response.send_message(
-            f"✅ {recruit.mention} recruited as driver for **{crew['crew_name']}**! {team_name} role assigned.",
-            ephemeral=True
-        )
+        try:
+            recruit = self.parent.selected_recruit
+            crew = self.parent.crew
+
+            logger.info(f"🚗 Assigning {recruit.display_name} as driver for {crew['crew_name']}")
+
+            # Assign recruit as driver
+            crew['driver'] = recruit
+
+            # Assign team role to the recruit
+            armor_events_cog = interaction.client.get_cog('ArmorEvents')
+            if armor_events_cog:
+                await armor_events_cog.assign_event_role(recruit, self.parent.main_view.event_type, self.parent.team)
+
+            # Remove from recruit pool
+            if recruit in self.parent.main_view.recruits:
+                self.parent.main_view.recruits.remove(recruit)
+
+            await self.parent.main_view.update_embed(interaction)
+            team_name = "Allies" if self.parent.team == "A" else "Axis"
+            await interaction.response.send_message(
+                f"✅ **{recruit.display_name}** recruited as driver for **{crew['crew_name']}**! {team_name} role assigned.",
+                ephemeral=True
+            )
+            logger.info(f"✅ Successfully recruited {recruit.display_name} as driver")
+
+        except Exception as e:
+            logger.error(f"❌ Error assigning driver: {e}")
+            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
 
 # Edit Crew System (unchanged)
 class EditCrewView(View):
