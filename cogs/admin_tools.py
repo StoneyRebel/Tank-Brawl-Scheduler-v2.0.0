@@ -386,93 +386,93 @@ class ToggleAutoMapVotesButton(Button):
         current_state = parent.settings.get('auto_map_votes', True)
         label = "🗳️ Disable Auto Map Votes" if current_state else "🗳️ Enable Auto Map Votes"
         style = discord.ButtonStyle.danger if current_state else discord.ButtonStyle.success
-        
+
         super().__init__(label=label, style=style)
-        self.parent = parent
+        self.parent_view = parent
 
     async def callback(self, interaction: discord.Interaction):
-        current_state = self.parent.settings.get('auto_map_votes', True)
+        current_state = self.parent_view.settings.get('auto_map_votes', True)
         new_state = not current_state
-        
+
         # Update database
-        self.parent.db.update_guild_setting(interaction.guild.id, 'auto_map_votes', new_state)
-        self.parent.settings['auto_map_votes'] = new_state
-        
+        self.parent_view.db.update_guild_setting(interaction.guild.id, 'auto_map_votes', new_state)
+        self.parent_view.settings['auto_map_votes'] = new_state
+
         # Update button
         self.label = "🗳️ Disable Auto Map Votes" if new_state else "🗳️ Enable Auto Map Votes"
         self.style = discord.ButtonStyle.danger if new_state else discord.ButtonStyle.success
-        
+
         await interaction.response.send_message(
-            f"✅ Auto map votes {'enabled' if new_state else 'disabled'}.", 
+            f"✅ Auto map votes {'enabled' if new_state else 'disabled'}.",
             ephemeral=True
         )
-        await interaction.edit_original_response(view=self.parent)
+        await interaction.edit_original_response(view=self.parent_view)
 
 class ToggleAutoRolesButton(Button):
     def __init__(self, parent):
         current_state = parent.settings.get('auto_role_assignment', True)
         label = "🎭 Disable Auto Roles" if current_state else "🎭 Enable Auto Roles"
         style = discord.ButtonStyle.danger if current_state else discord.ButtonStyle.success
-        
+
         super().__init__(label=label, style=style)
-        self.parent = parent
+        self.parent_view = parent
 
     async def callback(self, interaction: discord.Interaction):
-        current_state = self.parent.settings.get('auto_role_assignment', True)
+        current_state = self.parent_view.settings.get('auto_role_assignment', True)
         new_state = not current_state
-        
-        self.parent.db.update_guild_setting(interaction.guild.id, 'auto_role_assignment', new_state)
-        self.parent.settings['auto_role_assignment'] = new_state
-        
+
+        self.parent_view.db.update_guild_setting(interaction.guild.id, 'auto_role_assignment', new_state)
+        self.parent_view.settings['auto_role_assignment'] = new_state
+
         self.label = "🎭 Disable Auto Roles" if new_state else "🎭 Enable Auto Roles"
         self.style = discord.ButtonStyle.danger if new_state else discord.ButtonStyle.success
-        
+
         await interaction.response.send_message(
-            f"✅ Auto role assignment {'enabled' if new_state else 'disabled'}.", 
+            f"✅ Auto role assignment {'enabled' if new_state else 'disabled'}.",
             ephemeral=True
         )
-        await interaction.edit_original_response(view=self.parent)
+        await interaction.edit_original_response(view=self.parent_view)
 
 class ToggleRecruitmentButton(Button):
     def __init__(self, parent):
         current_state = parent.settings.get('recruitment_enabled', True)
         label = "🎯 Disable Recruitment" if current_state else "🎯 Enable Recruitment"
         style = discord.ButtonStyle.danger if current_state else discord.ButtonStyle.success
-        
+
         super().__init__(label=label, style=style)
-        self.parent = parent
+        self.parent_view = parent
 
     async def callback(self, interaction: discord.Interaction):
-        current_state = self.parent.settings.get('recruitment_enabled', True)
+        current_state = self.parent_view.settings.get('recruitment_enabled', True)
         new_state = not current_state
-        
-        self.parent.db.update_guild_setting(interaction.guild.id, 'recruitment_enabled', new_state)
-        self.parent.settings['recruitment_enabled'] = new_state
-        
+
+        self.parent_view.db.update_guild_setting(interaction.guild.id, 'recruitment_enabled', new_state)
+        self.parent_view.settings['recruitment_enabled'] = new_state
+
         self.label = "🎯 Disable Recruitment" if new_state else "🎯 Enable Recruitment"
         self.style = discord.ButtonStyle.danger if new_state else discord.ButtonStyle.success
-        
+
         await interaction.response.send_message(
-            f"✅ Recruitment system {'enabled' if new_state else 'disabled'}.", 
+            f"✅ Recruitment system {'enabled' if new_state else 'disabled'}.",
             ephemeral=True
         )
-        await interaction.edit_original_response(view=self.parent)
+        await interaction.edit_original_response(view=self.parent_view)
 
 class EditAdminRolesButton(Button):
     def __init__(self, parent):
         super().__init__(label="🛡️ Edit Admin Roles", style=discord.ButtonStyle.secondary)
-        self.parent = parent
+        self.parent_view = parent
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(EditAdminRolesModal(self.parent))
+        await interaction.response.send_modal(EditAdminRolesModal(self.parent_view))
 
 class EditReminderTimesButton(Button):
     def __init__(self, parent):
         super().__init__(label="⏰ Edit Reminder Times", style=discord.ButtonStyle.secondary)
-        self.parent = parent
+        self.parent_view = parent
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(EditReminderTimesModal(self.parent))
+        await interaction.response.send_modal(EditReminderTimesModal(self.parent_view))
 
 class EditAdminRolesModal(Modal):
     def __init__(self, settings_view):
