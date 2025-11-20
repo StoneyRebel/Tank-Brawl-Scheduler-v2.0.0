@@ -613,6 +613,10 @@ class EventDatabase:
         if not hasattr(user, 'roles'):
             return False
 
+        # Allow server owners and Discord administrators as fallback
+        if hasattr(user, 'guild_permissions') and user.guild_permissions.administrator:
+            return True
+
         settings = self.get_guild_settings(guild_id)
         admin_roles = settings.get('admin_roles', [])
 
