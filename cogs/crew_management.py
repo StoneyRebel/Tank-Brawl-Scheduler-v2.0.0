@@ -27,8 +27,8 @@ class CrewManagement(commands.Cog):
     @app_commands.command(name="crew_panel")
     async def crew_panel(self, interaction: discord.Interaction):
         """Create a crew management panel in this channel"""
-        
-        if not any(role.name in ADMIN_ROLES for role in interaction.user.roles):
+
+        if not self.db.has_admin_permissions(interaction.user, interaction.guild.id):
             await interaction.response.send_message("❌ Only admins can create crew panels.", ephemeral=True)
             return
         

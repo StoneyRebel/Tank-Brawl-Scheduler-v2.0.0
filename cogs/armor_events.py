@@ -30,7 +30,7 @@ class ArmorEvents(commands.Cog):
     async def schedule_event(self, interaction: discord.Interaction, title: str,
                            description: str = None, date: str = None, time: str = None):
 
-        if not any(role.name in ADMIN_ROLES for role in interaction.user.roles):
+        if not self.db.has_admin_permissions(interaction.user, interaction.guild.id):
             await interaction.response.send_message("❌ You need admin permissions.", ephemeral=True)
             return
 
@@ -1276,7 +1276,9 @@ class EndEventButton(Button):
 
     async def callback(self, interaction: discord.Interaction):
         # Check if user has admin permissions
-        if not any(role.name in ADMIN_ROLES for role in interaction.user.roles):
+        from utils.database import EventDatabase
+        db = EventDatabase()
+        if not db.has_admin_permissions(interaction.user, interaction.guild.id):
             await interaction.response.send_message("❌ Only admins can end events.", ephemeral=True)
             return
 
@@ -1309,8 +1311,6 @@ class EndEventButton(Button):
             # Save all signups to database
             armor_events_cog = interaction.client.get_cog('ArmorEvents')
             if armor_events_cog and self.view_ref.event_id:
-                from utils.database import EventDatabase
-                db = EventDatabase()
 
                 for user, team, role, crew_name in participants:
                     try:

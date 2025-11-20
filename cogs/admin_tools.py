@@ -19,19 +19,19 @@ class AdminTools(commands.Cog):
         self.db = EventDatabase()
         logger.info("Admin Tools cog initialized")
 
-    def has_admin_permissions(self, user: discord.Member) -> bool:
-        """Check if user has admin permissions"""
-        if not hasattr(user, 'roles'):
-            return False
-        return any(role.name in ADMIN_ROLES for role in user.roles)
+    def has_admin_permissions(self, user: discord.Member, guild_id: int) -> bool:
+        """Check if user has admin permissions based on guild settings"""
+        return self.db.has_admin_permissions(user, guild_id)
 
     @app_commands.command(name="settings")
     async def server_settings(self, interaction: discord.Interaction):
         """Configure bot settings for this server"""
-        
-        if not self.has_admin_permissions(interaction.user):
+
+        if not self.has_admin_permissions(interaction.user, interaction.guild.id):
+            settings = self.db.get_guild_settings(interaction.guild.id)
+            admin_roles = settings.get('admin_roles', [])
             await interaction.response.send_message(
-                f"❌ You need one of these roles: {', '.join(ADMIN_ROLES)}", 
+                f"❌ You need one of these roles: {', '.join(admin_roles)}",
                 ephemeral=True
             )
             return
@@ -80,8 +80,8 @@ class AdminTools(commands.Cog):
     ])
     async def event_roles(self, interaction: discord.Interaction, action: app_commands.Choice[str]):
         """Manage event-specific roles for notifications and access control"""
-        
-        if not self.has_admin_permissions(interaction.user):
+
+        if not self.has_admin_permissions(interaction.user, interaction.guild.id):
             await interaction.response.send_message("❌ You need admin permissions.", ephemeral=True)
             return
         
@@ -166,8 +166,8 @@ class AdminTools(commands.Cog):
     )
     async def purge_messages(self, interaction: discord.Interaction, amount: int, user: discord.Member = None):
         """Delete multiple messages at once"""
-        
-        if not self.has_admin_permissions(interaction.user):
+
+        if not self.has_admin_permissions(interaction.user, interaction.guild.id):
             await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
             return
         
@@ -212,11 +212,11 @@ class AdminTools(commands.Cog):
         app_commands.Choice(name="Role Info", value="info"),
         app_commands.Choice(name="List Members", value="members")
     ])
-    async def role_manager(self, interaction: discord.Interaction, action: app_commands.Choice[str], 
+    async def role_manager(self, interaction: discord.Interaction, action: app_commands.Choice[str],
                           role: discord.Role, user: discord.Member = None):
         """Manage server roles"""
-        
-        if not self.has_admin_permissions(interaction.user):
+
+        if not self.has_admin_permissions(interaction.user, interaction.guild.id):
             await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
             return
         
@@ -292,8 +292,8 @@ class AdminTools(commands.Cog):
     @app_commands.describe(days_old="Delete completed events older than this many days (default: 90)")
     async def event_cleanup(self, interaction: discord.Interaction, days_old: int = 90):
         """Clean up old completed events from the database"""
-        
-        if not self.has_admin_permissions(interaction.user):
+
+        if not self.has_admin_permissions(interaction.user, interaction.guild.id):
             await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
             return
         
@@ -341,8 +341,8 @@ class AdminTools(commands.Cog):
     @app_commands.command(name="database_stats")
     async def database_stats(self, interaction: discord.Interaction):
         """Show database statistics"""
-        
-        if not self.has_admin_permissions(interaction.user):
+
+        if not self.has_admin_permissions(interaction.user, interaction.guild.id):
             await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
             return
         

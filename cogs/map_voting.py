@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 import sqlite3
 
+from utils.database import EventDatabase
+
 logger = logging.getLogger(__name__)
 
 # Map options for Hell Let Loose
@@ -46,7 +48,6 @@ UPDATE_INTERVALS = {
 }
 
 # Configuration
-ADMIN_ROLES = ["Moderator", "Admin", "Event Organizer"]
 COLORS = {
     "success": 0x00ff00,
     "error": 0xff0000,
@@ -292,14 +293,15 @@ class MapVoting(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.vote_db = VoteDatabase()
+        self.db = EventDatabase()  # For admin permission checks
         self.active_votes = {}
-        
+
         # Track update intervals to optimize performance
         self.last_update_times = {}
-        
+
         # Track restoration status
         self.restoration_complete = False
-        
+
         logger.info("Enhanced Map Voting cog initialized with 7-day persistence")
 
     async def cog_load(self):
@@ -851,7 +853,7 @@ class MapVoting(commands.Cog):
 
         # Check permissions - only creator or admins can end vote
         if (vote_data['creator_id'] != interaction.user.id and
-            not any(role.name in ADMIN_ROLES for role in interaction.user.roles)):
+            not self.db.has_admin_permissions(interaction.user, interaction.guild.id)):
             await interaction.response.send_message(
                 "❌ You can only end votes you created, or you need admin permissions.",
                 ephemeral=True

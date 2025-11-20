@@ -597,13 +597,23 @@ class EventDatabase:
         """Get database statistics"""
         conn = sqlite3.connect(self.db_path, timeout=self.timeout)
         cursor = conn.cursor()
-        
+
         stats = {}
-        
+
         tables = ['events', 'signups', 'user_stats', 'persistent_crews', 'guild_settings']
         for table in tables:
             cursor.execute(f'SELECT COUNT(*) FROM {table}')
             stats[table] = cursor.fetchone()[0]
-        
+
         conn.close()
         return stats
+
+    def has_admin_permissions(self, user, guild_id: int) -> bool:
+        """Check if user has admin permissions based on guild settings"""
+        if not hasattr(user, 'roles'):
+            return False
+
+        settings = self.get_guild_settings(guild_id)
+        admin_roles = settings.get('admin_roles', [])
+
+        return any(role.name in admin_roles for role in user.roles)
