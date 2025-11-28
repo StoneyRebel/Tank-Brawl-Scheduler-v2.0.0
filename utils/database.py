@@ -114,12 +114,16 @@ class EventDatabase:
                 reminder_times TEXT, -- JSON array of reminder minutes
                 default_event_duration INTEGER DEFAULT 120,
                 auto_role_assignment BOOLEAN DEFAULT 1,
+                auto_map_votes BOOLEAN DEFAULT 1,
                 recruitment_enabled BOOLEAN DEFAULT 1,
                 settings_data TEXT, -- JSON for additional settings
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Ensure newer columns exist when upgrading older databases
+        self._ensure_guild_setting_columns(cursor)
 
         # Reminders queue
         cursor.execute('''
@@ -137,6 +141,23 @@ class EventDatabase:
         conn.commit()
         conn.close()
         logger.info("Database initialized successfully")
+
+    def _ensure_guild_setting_columns(self, cursor: sqlite3.Cursor):
+        """Add missing columns to guild_settings when upgrading."""
+        cursor.execute("PRAGMA table_info(guild_settings)")
+        columns = {row[1] for row in cursor.fetchall()}
+
+        required_columns = {
+            'auto_map_votes': 'BOOLEAN DEFAULT 1'
+        }
+
+        for column, definition in required_columns.items():
+            if column not in columns:
+                cursor.execute(f"ALTER TABLE guild_settings ADD COLUMN {column} {definition}")
+
+        # Backfill defaults for newly added columns
+        if 'auto_map_votes' in required_columns:
+            cursor.execute("UPDATE guild_settings SET auto_map_votes = 1 WHERE auto_map_votes IS NULL")
 
     # Event management methods
     def create_event(self, guild_id: int, channel_id: int, creator_id: int, 
@@ -457,6 +478,7 @@ class EventDatabase:
         
         cursor.execute('SELECT * FROM guild_settings WHERE guild_id = ?', (guild_id,))
         result = cursor.fetchone()
+        columns = [desc[0] for desc in cursor.description]
         
         if not result:
             # Create default settings
@@ -466,29 +488,34 @@ class EventDatabase:
                 'reminder_times': json.dumps([60, 30, 10]),
                 'default_event_duration': 120,
                 'auto_role_assignment': 1,
+                'auto_map_votes': 1,
                 'recruitment_enabled': 1,
                 'settings_data': json.dumps({})
             }
             
             cursor.execute('''
                 INSERT INTO guild_settings (guild_id, admin_roles, event_channels, reminder_times,
-                                          default_event_duration, auto_role_assignment, recruitment_enabled, settings_data)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                          default_event_duration, auto_role_assignment, auto_map_votes, recruitment_enabled, settings_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (guild_id, *default_settings.values()))
             
             conn.commit()
             result = (guild_id, *default_settings.values(), None, None)
+            columns = ['guild_id', *default_settings.keys(), 'created_at', 'updated_at']
         
         conn.close()
-        
+
+        settings_row = dict(zip(columns, result))
+
         return {
-            'admin_roles': json.loads(result[1]),
-            'event_channels': json.loads(result[2]),
-            'reminder_times': json.loads(result[3]),
-            'default_event_duration': result[4],
-            'auto_role_assignment': bool(result[5]),
-            'recruitment_enabled': bool(result[6]),
-            'settings_data': json.loads(result[7]) if result[7] else {}
+            'admin_roles': json.loads(settings_row.get('admin_roles') or '[]'),
+            'event_channels': json.loads(settings_row.get('event_channels') or '[]'),
+            'reminder_times': json.loads(settings_row.get('reminder_times') or '[]'),
+            'default_event_duration': settings_row.get('default_event_duration', 120),
+            'auto_role_assignment': bool(settings_row.get('auto_role_assignment', 1)),
+            'auto_map_votes': bool(settings_row.get('auto_map_votes', 1)),
+            'recruitment_enabled': bool(settings_row.get('recruitment_enabled', 1)),
+            'settings_data': json.loads(settings_row.get('settings_data') or '{}')
         }
 
     def update_guild_setting(self, guild_id: int, setting_name: str, value: Any):

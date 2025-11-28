@@ -614,10 +614,10 @@ class InviteRoleSelect(Select):
             discord.SelectOption(label="Driver", value="driver", emoji="🚗")
         ]
         super().__init__(placeholder="Select role to offer", options=options)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        self.parent.selected_role = self.values[0]
+        self.view_parent.selected_role = self.values[0]
         await interaction.response.send_message(
             f"✅ Selected role: {self.values[0].title()}\nNow click Send Invite.",
             ephemeral=True
@@ -626,14 +626,14 @@ class InviteRoleSelect(Select):
 class SendInviteButton(Button):
     def __init__(self, parent):
         super().__init__(label="📨 Send Invite", style=discord.ButtonStyle.success)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        if not self.parent.selected_user:
+        if not self.view_parent.selected_user:
             await interaction.response.send_message("❌ Please select a user first.", ephemeral=True)
             return
         
-        if not self.parent.selected_role:
+        if not self.view_parent.selected_role:
             await interaction.response.send_message("❌ Please select a role first.", ephemeral=True)
             return
         
@@ -641,9 +641,9 @@ class SendInviteButton(Button):
         cog = interaction.client.get_cog('CrewManagement')
         await cog.process_crew_invite(
             interaction, 
-            self.parent.crew, 
-            self.parent.selected_user, 
-            self.parent.selected_role
+            self.view_parent.crew, 
+            self.view_parent.selected_user, 
+            self.view_parent.selected_role
         )
 
 # Pagination for crew list
@@ -660,42 +660,42 @@ class CrewListPaginationView(View):
 class PreviousPageButton(Button):
     def __init__(self, parent):
         super().__init__(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        if self.parent.current_page <= 1:
+        if self.view_parent.current_page <= 1:
             await interaction.response.send_message("❌ Already on first page.", ephemeral=True)
             return
         
-        new_page = self.parent.current_page - 1
-        crews = self.parent.cog.get_all_guild_crews(interaction.guild.id, new_page)
+        new_page = self.view_parent.current_page - 1
+        crews = self.view_parent.cog.get_all_guild_crews(interaction.guild.id, new_page)
         
         if not crews:
             await interaction.response.send_message("❌ No crews on previous page.", ephemeral=True)
             return
         
-        embed = self.parent.cog.build_crew_list_embed(crews, new_page, self.parent.guild)
-        self.parent.current_page = new_page
+        embed = self.view_parent.cog.build_crew_list_embed(crews, new_page, self.view_parent.guild)
+        self.view_parent.current_page = new_page
         
-        await interaction.response.send_message(embed=embed, view=self.parent, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=self.view_parent, ephemeral=True)
 
 class NextPageButton(Button):
     def __init__(self, parent):
         super().__init__(label="Next ➡️", style=discord.ButtonStyle.secondary)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        new_page = self.parent.current_page + 1
-        crews = self.parent.cog.get_all_guild_crews(interaction.guild.id, new_page)
+        new_page = self.view_parent.current_page + 1
+        crews = self.view_parent.cog.get_all_guild_crews(interaction.guild.id, new_page)
         
         if not crews:
             await interaction.response.send_message("❌ No more crews to display.", ephemeral=True)
             return
         
-        embed = self.parent.cog.build_crew_list_embed(crews, new_page, self.parent.guild)
-        self.parent.current_page = new_page
+        embed = self.view_parent.cog.build_crew_list_embed(crews, new_page, self.view_parent.guild)
+        self.view_parent.current_page = new_page
         
-        await interaction.response.send_message(embed=embed, view=self.parent, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=self.view_parent, ephemeral=True)
 
 # Original UI Components for Crew Management
 
@@ -777,30 +777,30 @@ class CrewInvitationView(View):
 class AcceptCrewInviteButton(Button):
     def __init__(self, parent):
         super().__init__(label="✅ Accept", style=discord.ButtonStyle.success)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user != self.parent.target_user:
+        if interaction.user != self.view_parent.target_user:
             await interaction.response.send_message("❌ This invitation is not for you.", ephemeral=True)
             return
         
         # Update database
-        conn = sqlite3.connect(self.parent.db.db_path, timeout=30.0)
+        conn = sqlite3.connect(self.view_parent.db.db_path, timeout=30.0)
         cursor = conn.cursor()
         
-        field_name = f"{self.parent.role}_id"
+        field_name = f"{self.view_parent.role}_id"
         cursor.execute(f'''
             UPDATE persistent_crews 
             SET {field_name} = ?, updated_at = CURRENT_TIMESTAMP 
             WHERE id = ?
-        ''', (self.parent.target_user.id, self.parent.crew['id']))
+        ''', (self.view_parent.target_user.id, self.view_parent.crew['id']))
         
         conn.commit()
         conn.close()
         
         embed = discord.Embed(
             title="🎉 Joined Crew!",
-            description=f"You've joined **{self.parent.crew['crew_name']}** as {self.parent.role}!",
+            description=f"You've joined **{self.view_parent.crew['crew_name']}** as {self.view_parent.role}!",
             color=COLORS["success"]
         )
         
@@ -810,31 +810,31 @@ class AcceptCrewInviteButton(Button):
         try:
             commander_embed = discord.Embed(
                 title="✅ Invitation Accepted!",
-                description=f"{self.parent.target_user.mention} joined your crew as {self.parent.role}!",
+                description=f"{self.view_parent.target_user.mention} joined your crew as {self.view_parent.role}!",
                 color=COLORS["success"]
             )
-            await self.parent.commander.send(embed=commander_embed)
+            await self.view_parent.commander.send(embed=commander_embed)
         except discord.Forbidden:
             pass
         
         # Disable view
-        for item in self.parent.children:
+        for item in self.view_parent.children:
             item.disabled = True
-        await interaction.edit_original_response(view=self.parent)
+        await interaction.edit_original_response(view=self.view_parent)
 
 class DeclineCrewInviteButton(Button):
     def __init__(self, parent):
         super().__init__(label="❌ Decline", style=discord.ButtonStyle.danger)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user != self.parent.target_user:
+        if interaction.user != self.view_parent.target_user:
             await interaction.response.send_message("❌ This invitation is not for you.", ephemeral=True)
             return
         
         embed = discord.Embed(
             title="❌ Invitation Declined",
-            description=f"You declined the invitation to join **{self.parent.crew['crew_name']}**.",
+            description=f"You declined the invitation to join **{self.view_parent.crew['crew_name']}**.",
             color=COLORS["error"]
         )
         
@@ -844,17 +844,17 @@ class DeclineCrewInviteButton(Button):
         try:
             commander_embed = discord.Embed(
                 title="❌ Invitation Declined",
-                description=f"{self.parent.target_user.mention} declined your crew invitation.",
+                description=f"{self.view_parent.target_user.mention} declined your crew invitation.",
                 color=COLORS["error"]
             )
-            await self.parent.commander.send(embed=commander_embed)
+            await self.view_parent.commander.send(embed=commander_embed)
         except discord.Forbidden:
             pass
         
         # Disable view
-        for item in self.parent.children:
+        for item in self.view_parent.children:
             item.disabled = True
-        await interaction.edit_original_response(view=self.parent)
+        await interaction.edit_original_response(view=self.view_parent)
 
 class CrewEditView(View):
     def __init__(self, crew: Dict):
@@ -868,38 +868,38 @@ class CrewEditView(View):
 class EditCrewNameButton(Button):
     def __init__(self, parent):
         super().__init__(label="📝 Edit Name", style=discord.ButtonStyle.secondary)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(EditCrewNameModal(self.parent.crew))
+        await interaction.response.send_modal(EditCrewNameModal(self.view_parent.crew))
 
 class EditCrewDescriptionButton(Button):
     def __init__(self, parent):
         super().__init__(label="📄 Edit Description", style=discord.ButtonStyle.secondary)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(EditCrewDescriptionModal(self.parent.crew))
+        await interaction.response.send_modal(EditCrewDescriptionModal(self.view_parent.crew))
 
 class RemoveCrewMemberButton(Button):
     def __init__(self, parent):
         super().__init__(label="👤 Remove Member", style=discord.ButtonStyle.danger)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
         # Show dropdown to select member to remove
         members = []
-        if self.parent.crew['gunner_id']:
-            members.append(('gunner', self.parent.crew['gunner_id']))
-        if self.parent.crew['driver_id']:
-            members.append(('driver', self.parent.crew['driver_id']))
+        if self.view_parent.crew['gunner_id']:
+            members.append(('gunner', self.view_parent.crew['gunner_id']))
+        if self.view_parent.crew['driver_id']:
+            members.append(('driver', self.view_parent.crew['driver_id']))
         
         if not members:
             await interaction.response.send_message("❌ No members to remove.", ephemeral=True)
             return
         
         await interaction.response.send_message(
-            view=RemoveCrewMemberView(self.parent.crew, members), 
+            view=RemoveCrewMemberView(self.view_parent.crew, members), 
             ephemeral=True
         )
 
@@ -1059,23 +1059,23 @@ class CrewDisbandConfirmView(View):
 class ConfirmDisbandButton(Button):
     def __init__(self, parent):
         super().__init__(label="✅ Disband Crew", style=discord.ButtonStyle.danger)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
         # Mark crew as inactive
-        conn = sqlite3.connect(self.parent.db.db_path, timeout=30.0)
+        conn = sqlite3.connect(self.view_parent.db.db_path, timeout=30.0)
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE persistent_crews 
             SET active = 0, updated_at = CURRENT_TIMESTAMP 
             WHERE id = ?
-        ''', (self.parent.crew['id'],))
+        ''', (self.view_parent.crew['id'],))
         conn.commit()
         conn.close()
         
         embed = discord.Embed(
             title="💥 Crew Disbanded",
-            description=f"**{self.parent.crew['crew_name']}** has been disbanded.",
+            description=f"**{self.view_parent.crew['crew_name']}** has been disbanded.",
             color=COLORS["error"]
         )
         
@@ -1084,7 +1084,7 @@ class ConfirmDisbandButton(Button):
 class CancelDisbandButton(Button):
     def __init__(self, parent):
         super().__init__(label="❌ Cancel", style=discord.ButtonStyle.secondary)
-        self.parent = parent
+        self.view_parent = parent
 
     async def callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
