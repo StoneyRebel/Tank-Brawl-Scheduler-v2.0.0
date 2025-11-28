@@ -115,11 +115,18 @@ class EventDatabase:
                 default_event_duration INTEGER DEFAULT 120,
                 auto_role_assignment BOOLEAN DEFAULT 1,
                 recruitment_enabled BOOLEAN DEFAULT 1,
+                auto_map_votes BOOLEAN DEFAULT 1,
                 settings_data TEXT, -- JSON for additional settings
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Add auto_map_votes column if it doesn't exist (migration for existing databases)
+        try:
+            cursor.execute('ALTER TABLE guild_settings ADD COLUMN auto_map_votes BOOLEAN DEFAULT 1')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
         # Reminders queue
         cursor.execute('''
